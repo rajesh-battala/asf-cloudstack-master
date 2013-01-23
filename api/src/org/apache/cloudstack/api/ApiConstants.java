@@ -451,6 +451,11 @@ public class ApiConstants {
     public static final String GUEST_VM_CIDR = "guestvmcidr";
     public static final String NETWORK_CIDR = "networkcidr";
     public static final String RESERVED_IP_RANGE = "reservediprange";
+    public static final String HEALTHCHECK_RESPONSE_TIME = "responsetime";
+    public static final String HEALTHCHECK_INTERVAL_TIME = "intervaltime";
+    public static final String HEALTHCHECK_HEALTHY_THRESSHOLD = "healthythresshold";
+    public static final String HEALTHCHECK_UNHEALTHY_THRESSHOLD = "unhealthythresshold";
+    public static final String HEALTHCHECK_PINGPATH = "pingpath";
 
     public enum HostDetails {
         all, capacity, events, stats, min;

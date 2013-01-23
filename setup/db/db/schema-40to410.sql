@@ -176,8 +176,7 @@ ALTER TABLE async_job modify job_cmd VARCHAR(255);
 ALTER TABLE `cloud`.`alert` ADD INDEX `last_sent` (`last_sent` DESC) ;
 
 ALTER TABLE `cloud`.`network_offerings` ADD COLUMN `is_persistent` int(1) unsigned NOT NULL DEFAULT 0 COMMENT 'true if the network offering provides an ability to create persistent networks';
-
-
+ALTER TABLE `cloud`.`load_balancer_vm_map` ADD state VARCHAR(40) NULL COMMENT 'service status updated by LB healthcheck manager'
 -- populate uuid column with db id if uuid is null
 UPDATE `cloud`.`account` set uuid=id WHERE uuid is NULL;
 UPDATE `cloud`.`alert` set uuid=id WHERE uuid is NULL;

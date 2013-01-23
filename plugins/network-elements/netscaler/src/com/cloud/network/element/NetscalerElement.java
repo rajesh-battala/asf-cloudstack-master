@@ -817,4 +817,26 @@ StaticNatServiceProvider {
         }
         return null;
     }
+
+    @Override
+    public List<LoadBalancerTO> updateHealthChecks(Network network, List<LoadBalancingRule> lbrules) {
+
+        if (canHandle(network, Service.Lb)) {
+            try {
+                return getLBHealthChecks(network, lbrules);
+            } catch (ResourceUnavailableException e) {
+                s_logger.error("Error in getting the LB Rules from NetScaler " + e);
+            }
+        } else {
+            s_logger.error("Network cannot handle to LB service ");
+        }
+        return null;
+    }
+
+    @Override
+    public List<LoadBalancerTO> getLBHealthChecks(Network network, List<? extends FirewallRule> rules)
+            throws ResourceUnavailableException {
+        return super.getLBHealthChecks(network, rules);
+
+    }
 }

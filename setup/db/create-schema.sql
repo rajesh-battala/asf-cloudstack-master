@@ -79,6 +79,7 @@ DROP TABLE IF EXISTS `cloud`.`sync_queue_item`;
 DROP TABLE IF EXISTS `cloud`.`security_group_vm_map`;
 DROP TABLE IF EXISTS `cloud`.`load_balancer_vm_map`;
 DROP TABLE IF EXISTS `cloud`.`load_balancer_stickiness_policies`;
+DROP TABLE IF EXISTS `cloud`.`load_balancer_healthcheck_policies`;
 DROP TABLE IF EXISTS `cloud`.`load_balancer_inline_ip_map`;
 DROP TABLE IF EXISTS `cloud`.`storage_pool`;
 DROP TABLE IF EXISTS `cloud`.`storage_pool_host_ref`;
@@ -762,6 +763,7 @@ CREATE TABLE `cloud`.`load_balancer_vm_map` (
   `load_balancer_id` bigint unsigned NOT NULL,
   `instance_id` bigint unsigned NOT NULL,
   `revoke` tinyint(1) unsigned NOT NULL DEFAULT 0 COMMENT '1 is when rule is set for Revoke',
+  `state` varchar(50) NULL DEFAULT NULL,
   PRIMARY KEY  (`id`),
   UNIQUE KEY (`load_balancer_id`, `instance_id`),
   CONSTRAINT `fk_load_balancer_vm_map__load_balancer_id` FOREIGN KEY(`load_balancer_id`) REFERENCES `load_balancing_rules`(`id`) ON DELETE CASCADE,
@@ -779,6 +781,22 @@ CREATE TABLE `cloud`.`load_balancer_stickiness_policies` (
   `revoke` tinyint(1) unsigned NOT NULL DEFAULT 0 COMMENT '1 is when rule is set for Revoke',
   PRIMARY KEY  (`id`),
   CONSTRAINT `fk_load_balancer_stickiness_policies__load_balancer_id` FOREIGN KEY(`load_balancer_id`) REFERENCES `load_balancing_rules`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CREATE TABLE `cloud`.`load_balancer_healthcheck_policies` (
+ `id` bigint(20) NOT NULL auto_increment,
+  `uuid` varchar(40),
+  `load_balancer_id` bigint unsigned NOT NULL,
+  `pingpath` varchar(225) NULL DEFAULT '/',
+  `description` varchar(4096)  NULL,
+  `response_time` int(11) DEFAULT 5,
+  `healthcheck_interval` int(11) DEFAULT 5,
+  `healthcheck_thresshold` int(11) DEFAULT 2,
+  `unhealth_thresshold` int(11) DEFAULT 10,
+  `revoke` tinyint(1) unsigned NOT NULL DEFAULT 0 COMMENT '1 is when rule is set for Revoke',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `id_UNIQUE` (`id`),
+  CONSTRAINT `fk_load_balancer_healthcheck_policies_loadbalancer_id` FOREIGN KEY(`load_balancer_id`) REFERENCES `load_balancing_rules`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE `cloud`.`inline_load_balancer_nic_map` (

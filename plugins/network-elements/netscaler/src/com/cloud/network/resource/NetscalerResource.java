@@ -11,11 +11,12 @@
 // Unless required by applicable law or agreed to in writing,
 // software distributed under the License is distributed on an
 // "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-// KIND, either express or implied.  See the License for the 
+// KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
 package com.cloud.network.resource;
 
+import java.util.ArrayList;
 import java.util.Formatter;
 import java.util.HashMap;
 import java.util.List;
@@ -31,6 +32,7 @@ import com.citrix.netscaler.nitro.resource.base.base_response;
 import com.citrix.netscaler.nitro.resource.config.autoscale.autoscalepolicy;
 import com.citrix.netscaler.nitro.resource.config.autoscale.autoscaleprofile;
 import com.citrix.netscaler.nitro.resource.config.basic.server_service_binding;
+import com.citrix.netscaler.nitro.resource.config.basic.service_lbmonitor_binding;
 import com.citrix.netscaler.nitro.resource.config.basic.servicegroup;
 import com.citrix.netscaler.nitro.resource.config.basic.servicegroup_lbmonitor_binding;
 import com.citrix.netscaler.nitro.resource.config.lb.lbmetrictable;
@@ -71,6 +73,8 @@ import com.cloud.agent.api.StartupCommand;
 import com.cloud.agent.api.StartupExternalLoadBalancerCommand;
 import com.cloud.agent.api.routing.CreateLoadBalancerApplianceCommand;
 import com.cloud.agent.api.routing.DestroyLoadBalancerApplianceCommand;
+import com.cloud.agent.api.routing.HealthCheckLBConfigAnswer;
+import com.cloud.agent.api.routing.HealthCheckLBConfigCommand;
 import com.cloud.agent.api.routing.IpAssocAnswer;
 import com.cloud.agent.api.routing.IpAssocCommand;
 import com.cloud.agent.api.routing.LoadBalancerConfigCommand;
@@ -84,6 +88,7 @@ import com.cloud.agent.api.to.LoadBalancerTO.AutoScaleVmProfileTO;
 import com.cloud.agent.api.to.LoadBalancerTO.ConditionTO;
 import com.cloud.agent.api.to.LoadBalancerTO.CounterTO;
 import com.cloud.agent.api.to.LoadBalancerTO.DestinationTO;
+import com.cloud.agent.api.to.LoadBalancerTO.HealthCheckPolicyTO;
 import com.cloud.agent.api.to.LoadBalancerTO.StickinessPolicyTO;
 import com.cloud.agent.api.to.StaticNatRuleTO;
 import org.apache.cloudstack.api.ApiConstants;
@@ -396,12 +401,14 @@ public class NetscalerResource implements ServerResource {
             return execute((DestroyLoadBalancerApplianceCommand) cmd, numRetries);
         } else if (cmd instanceof SetStaticNatRulesCommand) {
             return execute((SetStaticNatRulesCommand) cmd, numRetries);
-        } else {
+        } else if (cmd instanceof HealthCheckLBConfigCommand) {
+           return execute((HealthCheckLBConfigCommand) cmd, numRetries);
+        }else {
             return Answer.createUnsupportedCommandAnswer(cmd);
         }
     }
 
-    private Answer execute(ReadyCommand cmd) {
+	private Answer execute(ReadyCommand cmd) {
         return new ReadyAnswer(cmd);
     }
 
@@ -450,6 +457,54 @@ public class NetscalerResource implements ServerResource {
         return new IpAssocAnswer(cmd, results);
     }
 
+    private Answer execute(HealthCheckLBConfigCommand cmd, int numRetries) {
+
+        List<LoadBalancerTO> hcLB = new ArrayList<LoadBalancerTO>();
+        try {
+
+            if (_isSdx) {
+                return Answer.createUnsupportedCommandAnswer(cmd);
+            }
+
+            LoadBalancerTO[] loadBalancers = cmd.getLoadBalancers();
+
+            if (loadBalancers == null) {
+                return new HealthCheckLBConfigAnswer(hcLB);
+            }
+
+            for (LoadBalancerTO loadBalancer : loadBalancers) {
+                HealthCheckPolicyTO[] healthCheckPolicies = loadBalancer.getHealthCheckPolicies();
+                if ((healthCheckPolicies != null) && (healthCheckPolicies.length > 0)
+                        && (healthCheckPolicies[0] != null)) {
+                    for (DestinationTO destination : loadBalancer.getDestinations()) {
+                        String nsServiceName = generateNSServiceName(destination.getDestIp(), destination.getDestPort());
+                        String state = getServiceState(nsServiceName);
+                        s_logger.debug("LB HealthCheck :: Monitor state of service ::" + nsServiceName + "is  ::"
+                                + state);
+                        destination.setMonitorState(state);
+                    }
+                    hcLB.add(loadBalancer);
+                }
+            }
+
+        } catch (ExecutionException e) {
+            s_logger.error("Failed to execute HealthCheckLBConfigCommand due to ", e);
+            if (shouldRetry(numRetries)) {
+                return retry(cmd, numRetries);
+            } else {
+                return new HealthCheckLBConfigAnswer(hcLB);
+            }
+        } catch (Exception e) {
+            s_logger.error("Failed to execute HealthCheckLBConfigCommand due to ", e);
+            if (shouldRetry(numRetries)) {
+                return retry(cmd, numRetries);
+            } else {
+                return new HealthCheckLBConfigAnswer(hcLB);
+            }
+        }
+        return new HealthCheckLBConfigAnswer(hcLB);
+    }
+    
     private synchronized Answer execute(LoadBalancerConfigCommand cmd, int numRetries) {
         try {
             if (_isSdx) {
@@ -467,12 +522,13 @@ public class NetscalerResource implements ServerResource {
                 String lbProtocol = getNetScalerProtocol(loadBalancer);
                 String lbAlgorithm = loadBalancer.getAlgorithm();
                 String nsVirtualServerName  = generateNSVirtualServerName(srcIp, srcPort);
-
+                String nsMonitorName = generateNSMonitorName(srcIp, srcPort);
                 if(loadBalancer.isAutoScaleVmGroupTO()) {
                     applyAutoScaleConfig(loadBalancer);
                     return new Answer(cmd);
                 }
-
+                boolean hasMonitor = false;
+                boolean deleteMonitor = false;
                 boolean destinationsToAdd = false;
                 for (DestinationTO destination : loadBalancer.getDestinations()) {
                     if (!destination.isRevoked()) {
@@ -487,6 +543,14 @@ public class NetscalerResource implements ServerResource {
                     addLBVirtualServer(nsVirtualServerName, srcIp, srcPort, lbAlgorithm, lbProtocol, loadBalancer.getStickinessPolicies(), null);
                     if (s_logger.isDebugEnabled()) {
                         s_logger.debug("Created load balancing virtual server " + nsVirtualServerName + " on the Netscaler device");
+                    }
+
+                    // create a new monitor
+                    HealthCheckPolicyTO[] healthCheckPolicies = loadBalancer.getHealthCheckPolicies();
+                    if ((healthCheckPolicies != null) && (healthCheckPolicies.length > 0)
+                            && (healthCheckPolicies[0] != null)) {
+                        addLBMonitor(nsMonitorName, lbProtocol, healthCheckPolicies[0]);
+                        hasMonitor = true;
                     }
 
                     for (DestinationTO destination : loadBalancer.getDestinations()) {
@@ -533,6 +597,26 @@ public class NetscalerResource implements ServerResource {
                                 if (apiCallResult.errorcode != 0) {
                                     throw new ExecutionException("Failed to bind service: " + nsServiceName + " to the lb virtual server: " + nsVirtualServerName + " on Netscaler device");
                                 }
+                                
+                            }
+
+                            // After binding the service to the LB Vserver
+                            // successfully, bind the created monitor to the
+                            // service.
+                            if (hasMonitor) {
+                                if (!isServiceBoundToMonitor(nsServiceName, nsMonitorName))
+                                    bindServiceToMonitor(nsServiceName, nsMonitorName);
+                            } else {
+                                // check if any monitor created by CS is already
+                                // existing, if yes, unbind it from services and
+                                // delete it.
+                                if (nsMonitorExist(nsMonitorName)) {
+                                    // unbind the service from the monitor and
+                                    // delete the monitor
+                                    unBindServiceToMonitor(nsServiceName, nsMonitorName);
+                                    deleteMonitor = true;
+                                }
+
                             }
                             if (s_logger.isDebugEnabled()) {
                                 s_logger.debug("Successfully added LB destination: " + destination.getDestIp() + ":" + destination.getDestPort() + " to load balancer " + srcIp + ":" + srcPort);
@@ -609,7 +693,13 @@ public class NetscalerResource implements ServerResource {
                             }
                         }
                         removeLBVirtualServer(nsVirtualServerName);
+                        // remove monitor as LB VServer is getting removed.
+                        removeLBMonitor(nsMonitorName);
                     }
+                }
+                // delete lb monitor here
+                if (deleteMonitor) {
+                    removeLBMonitor(nsMonitorName);
                 }
             }
 
@@ -1222,6 +1312,21 @@ public class NetscalerResource implements ServerResource {
             throw new ExecutionException(e.getMessage());
         }
     }
+    
+    private lbmonitor getMonitorIfExisits(String lbMonitorName) throws ExecutionException {
+        try {
+            return lbmonitor.get(_netscalerService, lbMonitorName);
+            // return lbvserver.get(_netscalerService, lbVServerName);
+        } catch (nitro_exception e) {
+            if (e.getErrorCode() == NitroError.NS_RESOURCE_NOT_EXISTS) {
+                return null;
+            } else {
+                throw new ExecutionException(e.getMessage());
+            }
+        } catch (Exception e) {
+            throw new ExecutionException(e.getMessage());
+        }
+    }
 
     private boolean isServiceBoundToVirtualServer(String serviceName) throws ExecutionException {
         try {
@@ -1229,15 +1334,52 @@ public class NetscalerResource implements ServerResource {
             for (lbvserver vserver : lbservers) {
                 filtervalue[] filter = new filtervalue[1];
                 filter[0] = new filtervalue("servicename", serviceName);
-                lbvserver_service_binding[] result = lbvserver_service_binding.get_filtered(_netscalerService, vserver.get_name(), filter);
+                lbvserver_service_binding[] result = lbvserver_service_binding.get_filtered(_netscalerService,
+                        vserver.get_name(), filter);
                 if (result != null && result.length > 0) {
                     return true;
                 }
             }
             return false;
         } catch (Exception e) {
-            throw new ExecutionException("Failed to verify service " + serviceName + " is bound to any virtual server due to " + e.getMessage());
+            throw new ExecutionException("Failed to verify service " + serviceName
+                    + " is bound to any virtual server due to " + e.getMessage());
         }
+    }
+
+    private boolean isServiceBoundToMonitor(String nsServiceName, String nsMonitorName) throws ExecutionException {
+
+        filtervalue[] filter = new filtervalue[1];
+        filter[0] = new filtervalue("monitor_name", nsMonitorName);
+        service_lbmonitor_binding[] result;
+        try {
+            result = service_lbmonitor_binding.get_filtered(_netscalerService, nsServiceName, filter);
+            if (result != null && result.length > 0) {
+                return true;
+            }
+
+        } catch (Exception e) {
+            throw new ExecutionException("Failed to verify service " + nsServiceName
+                    + " is bound to any monitor due to " + e.getMessage());
+        }
+        return false;
+    }
+
+    private boolean nsMonitorExist(String nsMonitorname) throws ExecutionException {
+
+        try {
+            if (lbmonitor.get(_netscalerService, nsMonitorname) != null)
+                return true;
+        } catch (nitro_exception e) {
+            if (e.getErrorCode() == NitroError.NS_NO_SERIVCE) {
+                return false;
+            } else {
+                s_logger.debug("Failed to verify monitor  " + nsMonitorname + " exists due to " + e.getMessage());
+            }
+        } catch (Exception e) {
+            s_logger.debug("Failed to verify monitor " + nsMonitorname + " exists due to " + e.getMessage());
+        }
+        return false;
     }
 
     private boolean nsServiceExists(String serviceName) throws ExecutionException {
@@ -1478,6 +1620,159 @@ public class NetscalerResource implements ServerResource {
         } catch (Exception e) {
             throw new ExecutionException("Failed to remove virtual server:" + virtualServerName +" due to " + e.getMessage());
         }
+    }
+
+    // Monitor related methods
+    private void addLBMonitor(String nsMonitorName, String lbProtocol, HealthCheckPolicyTO hcp)
+            throws ExecutionException {
+        try {
+            // check if the monitor exists
+            boolean csMonitorExisis = false;
+            lbmonitor csMonitor = getMonitorIfExisits(nsMonitorName);
+            if (csMonitor != null) {
+                if (!csMonitor.get_type().equalsIgnoreCase(lbProtocol)) {
+                    throw new ExecutionException("Can not update monitor :" + nsMonitorName + " as current protocol:"
+                            + csMonitor.get_type() + " of monitor is different from the " + " intended protocol:"
+                            + lbProtocol);
+                }
+                csMonitorExisis = true;
+            }
+            if (!csMonitorExisis) {
+                lbmonitor csMon = new lbmonitor();
+                csMon.set_monitorname(nsMonitorName);
+                csMon.set_type(lbProtocol);
+                if (lbProtocol.equalsIgnoreCase("HTTP")) {
+                    csMon.set_httprequest(hcp.getpingPath());
+                    s_logger.trace("LB Protocol is HTTP,  Applying  ping path on HealthCheck Policy");
+                } else {
+                    s_logger.debug("LB Protocol is not HTTP, Skipping to apply  ping path on HealthCheck Policy");
+                }
+
+                csMon.set_interval(hcp.getHealthcheckInterval());
+                csMon.set_resptimeout(hcp.getResponseTime());
+                csMon.set_failureretries(hcp.getUnhealthThresshold());
+                csMon.set_successretries(hcp.getHealthcheckThresshold());
+                lbmonitor.add(_netscalerService, csMon);
+            } else {
+                s_logger.debug("Monitor :" + nsMonitorName + " is already existing. Skipping to delete and create it");
+            }
+
+        } catch (nitro_exception e) {
+            if (e.getErrorCode() == NitroError.NS_RESOURCE_NOT_EXISTS) {
+                return;
+            } else {
+                throw new ExecutionException("Failed to create new monitor :" + nsMonitorName + " due to "
+                        + e.getMessage());
+            }
+        } catch (Exception e) {
+            throw new ExecutionException("Failed to create new monitor :" + nsMonitorName + " due to " + e.getMessage());
+        }
+    }
+
+    private void bindServiceToMonitor(String nsServiceName, String nsMonitorName) throws ExecutionException {
+
+        try {
+            com.citrix.netscaler.nitro.resource.config.basic.service serviceObject = new com.citrix.netscaler.nitro.resource.config.basic.service();
+            serviceObject = com.citrix.netscaler.nitro.resource.config.basic.service.get(_netscalerService,
+                    nsServiceName);
+            if (serviceObject != null) {
+                com.citrix.netscaler.nitro.resource.config.basic.service_lbmonitor_binding serviceMonitor = new com.citrix.netscaler.nitro.resource.config.basic.service_lbmonitor_binding();
+                serviceMonitor.set_monitor_name(nsMonitorName);
+                serviceMonitor.set_name(nsServiceName);
+                serviceMonitor.set_monstate("ENABLED");
+                s_logger.debug("Trying to bind  the monitor :" + nsMonitorName + " to the service :" + nsServiceName);
+                com.citrix.netscaler.nitro.resource.config.basic.service_lbmonitor_binding.add(_netscalerService,
+                        serviceMonitor);
+                s_logger.debug("Successfully binded the monitor :" + nsMonitorName + " to the service :"
+                        + nsServiceName);
+            }
+
+        } catch (nitro_exception e) {
+            if (e.getErrorCode() == NitroError.NS_RESOURCE_NOT_EXISTS) {
+                return;
+            } else {
+                throw new ExecutionException("Failed to create new monitor :" + nsMonitorName + " due to "
+                        + e.getMessage());
+            }
+        } catch (Exception e) {
+            throw new ExecutionException("Failed to create new monitor :" + nsMonitorName + " due to " + e.getMessage());
+        }
+
+    }
+
+    private String getServiceState(String nsServiceName) throws ExecutionException {
+
+        try {
+            com.citrix.netscaler.nitro.resource.config.basic.service serviceObject = new com.citrix.netscaler.nitro.resource.config.basic.service();
+            serviceObject = com.citrix.netscaler.nitro.resource.config.basic.service.get(_netscalerService,
+                    nsServiceName);
+            if (serviceObject != null) {
+                return serviceObject.get_svrstate();
+            }
+        } catch (Exception e) {
+            s_logger.debug("Failed to verify service " + nsServiceName + e.getMessage());
+            return "UNKNOWN";
+        }
+        s_logger.debug("unable to fetch the service state, as service object  " + nsServiceName
+                + " is null. So returning unknown");
+        return "UNKNOWN";
+    }
+
+    private void unBindServiceToMonitor(String nsServiceName, String nsMonitorName) throws ExecutionException {
+
+        try {
+            com.citrix.netscaler.nitro.resource.config.basic.service serviceObject = new com.citrix.netscaler.nitro.resource.config.basic.service();
+            serviceObject = com.citrix.netscaler.nitro.resource.config.basic.service.get(_netscalerService,
+                    nsServiceName);
+
+            if (serviceObject != null) {
+                com.citrix.netscaler.nitro.resource.config.basic.service_lbmonitor_binding serviceMonitor = new com.citrix.netscaler.nitro.resource.config.basic.service_lbmonitor_binding();
+                serviceMonitor.set_monitor_name(nsMonitorName);
+                serviceMonitor.set_name(nsServiceName);
+                s_logger.debug("Trying to unbind  the monitor :" + nsMonitorName + " from the service :"
+                        + nsServiceName);
+                service_lbmonitor_binding.delete(_netscalerService, serviceMonitor);
+                s_logger.debug("Successfully unbinded the monitor :" + nsMonitorName + " from the service :"
+                        + nsServiceName);
+            }
+
+        } catch (nitro_exception e) {
+            if (e.getErrorCode() == NitroError.NS_RESOURCE_NOT_EXISTS) {
+                return;
+            } else {
+                throw new ExecutionException("Failed to unbind monitor :" + nsMonitorName + "from the service :"
+                        + nsServiceName + "due to " + e.getMessage());
+            }
+        } catch (Exception e) {
+            throw new ExecutionException("Failed to unbind monitor :" + nsMonitorName + "from the service :"
+                    + nsServiceName + "due to " + e.getMessage());
+        }
+
+    }
+
+    private void removeLBMonitor(String nsMonitorName) throws ExecutionException {
+
+        try {
+            lbmonitor monitorObj = lbmonitor.get(_netscalerService, nsMonitorName);
+            lbmonitor.delete(_netscalerService, monitorObj);
+            s_logger.info("Successfully deleted monitor : " + nsMonitorName);
+            // if monitor is HTTP type then first time deletion is not
+            // successfully deleting , so deleting monitor again.
+            if (monitorObj.get_type().equalsIgnoreCase("HTTP")) {
+                lbmonitor.delete(_netscalerService, monitorObj);
+                s_logger.info("Successfully deleting monitor of HTTP type : " + nsMonitorName);
+            }
+
+        } catch (nitro_exception e) {
+            if (e.getErrorCode() == NitroError.NS_RESOURCE_NOT_EXISTS) {
+                return;
+            } else {
+                throw new ExecutionException("Failed to delete monitor :" + nsMonitorName + " due to " + e.getMessage());
+            }
+        } catch (Exception e) {
+            throw new ExecutionException("Failed to delete monitor :" + nsMonitorName + " due to " + e.getMessage());
+        }
+
     }
 
     public synchronized void applyAutoScaleConfig(LoadBalancerTO loadBalancer) throws Exception, ExecutionException {
@@ -2227,6 +2522,11 @@ public class NetscalerResource implements ServerResource {
 
     private String generateNSVirtualServerName(String srcIp, long srcPort) {
         return genObjectName("Cloud-VirtualServer", srcIp, srcPort);
+    }
+    
+    private String generateNSMonitorName(String srcIp, long srcPort) {
+        // maximum length supported by NS is 31
+        return genObjectName("Cloud-Mon", srcIp, srcPort);
     }
 
     private String generateNSServerName(String serverIP) {

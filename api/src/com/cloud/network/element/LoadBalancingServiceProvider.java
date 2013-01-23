@@ -18,6 +18,7 @@ package com.cloud.network.element;
 
 import java.util.List;
 
+import com.cloud.agent.api.to.LoadBalancerTO;
 import com.cloud.exception.ResourceUnavailableException;
 import com.cloud.network.Network;
 import com.cloud.network.lb.LoadBalancingRule;
@@ -40,4 +41,6 @@ public interface LoadBalancingServiceProvider extends NetworkElement, IpDeployin
      * @throws
      */
     boolean validateLBRule(Network network, LoadBalancingRule rule);
+
+	List<LoadBalancerTO> updateHealthChecks(Network network, List<LoadBalancingRule> lbrules);
 }

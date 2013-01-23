@@ -65,7 +65,9 @@ under the License.
 	 <adapter name="F5BigIP" class="com.cloud.network.element.F5ExternalLoadBalancerElement"/>
 	 <adapter name="CiscoNexus1000vVSM" class="com.cloud.network.element.CiscoNexusVSMElement"/>
 	 </adapters>
-	 
+	 <adapters key="com.cloud.network.element.LoadBalancingServiceProvider">
+      <adapter name="Netscaler" class="com.cloud.network.element.NetscalerElement"/>
+     </adapters>
 	 <adapters key="com.cloud.hypervisor.HypervisorGuru">
 	  <adapter name="VMwareGuru" class="com.cloud.hypervisor.guru.VMwareGuru"/>
 	  </adapters>
