@@ -1045,14 +1045,18 @@ public class NetworkServiceImpl extends ManagerBase implements  NetworkService {
         if (ipv6 && providersConfiguredForExternalNetworking(ntwkProviders)) {
         	throw new InvalidParameterValueException("Cannot support IPv6 on network offering with external devices!");
         }
-        
+
         if (cidr != null && providersConfiguredForExternalNetworking(ntwkProviders)) {
             if (ntwkOff.getGuestType() == GuestType.Shared && (zone.getNetworkType() == NetworkType.Advanced) &&
                     isSharedNetworkOfferingWithServices(networkOfferingId)) {
                 // validate if CIDR specified overlaps with any of the CIDR's allocated for isolated networks and shared networks in the zone
                 checkSharedNetworkCidrOverlap(zoneId, pNtwk.getId(), cidr);
             } else {
-                throw new InvalidParameterValueException("Cannot specify CIDR when using network offering with external devices!");
+                // if the guest network is for the VPC, NS is supported as LB(External Provider),
+                // so cidr will not be null as it is generated from the super cidr of vpc.
+                // if cidr is not null and network is not part of vpc then throw the exception
+                if (vpcId == null)
+                    throw new InvalidParameterValueException("Cannot specify CIDR when using network offering with external devices!");
             }
         }
 
