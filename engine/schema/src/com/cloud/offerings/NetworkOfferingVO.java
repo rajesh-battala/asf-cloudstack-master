@@ -142,6 +142,9 @@ public class NetworkOfferingVO implements NetworkOffering {
     @Column(name="supports_streched_l2")
     boolean supportsStrechedL2 = false;
 
+    @Column(name="service_package_id")
+    String servicePackageUuid = null;
+
     @Override
     public String getDisplayText() {
         return displayText;
@@ -489,6 +492,15 @@ public class NetworkOfferingVO implements NetworkOffering {
 
     public void setPublicLb(boolean publicLb) {
         this.publicLb = publicLb;
+    }
+
+    @Override
+    public String getServicePackage() {
+        return servicePackageUuid;
+    }
+
+    public void setServicePackage(String servicePackageUuid) {
+        this.servicePackageUuid = servicePackageUuid;
     }
 
     @Override

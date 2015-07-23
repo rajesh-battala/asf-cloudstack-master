@@ -3844,6 +3844,7 @@ public class ConfigurationManagerImpl extends ManagerBase implements Configurati
         final Boolean egressDefaultPolicy = cmd.getEgressDefaultPolicy();
         Integer maxconn = null;
         boolean enableKeepAlive = false;
+        String servicePackageuuid = cmd.getServicePackageId();
 
         // Verify traffic type
         for (final TrafficType tType : TrafficType.values()) {
@@ -4084,7 +4085,7 @@ public class ConfigurationManagerImpl extends ManagerBase implements Configurati
         }
 
         final NetworkOffering offering = createNetworkOffering(name, displayText, trafficType, tags, specifyVlan, availability, networkRate, serviceProviderMap, false, guestType, false,
-                serviceOfferingId, conserveMode, serviceCapabilityMap, specifyIpRanges, isPersistent, details, egressDefaultPolicy, maxconn, enableKeepAlive);
+                serviceOfferingId, conserveMode, serviceCapabilityMap, specifyIpRanges, isPersistent, details, egressDefaultPolicy, maxconn, enableKeepAlive, servicePackageuuid );
         CallContext.current().setEventDetails(" Id: " + offering.getId() + " Name: " + name);
         return offering;
     }
@@ -4223,7 +4224,7 @@ public class ConfigurationManagerImpl extends ManagerBase implements Configurati
     public NetworkOfferingVO createNetworkOffering(final String name, final String displayText, final TrafficType trafficType, String tags, final boolean specifyVlan, final Availability availability,
             final Integer networkRate, final Map<Service, Set<Provider>> serviceProviderMap, final boolean isDefault, final Network.GuestType type, final boolean systemOnly, final Long serviceOfferingId,
             final boolean conserveMode, final Map<Service, Map<Capability, String>> serviceCapabilityMap, final boolean specifyIpRanges, final boolean isPersistent,
-            final Map<NetworkOffering.Detail, String> details, final boolean egressDefaultPolicy, final Integer maxconn, final boolean enableKeepAlive) {
+            final Map<NetworkOffering.Detail, String> details, final boolean egressDefaultPolicy, final Integer maxconn, final boolean enableKeepAlive, final String servicePackageUuid) {
 
         final String multicastRateStr = _configDao.getValue("multicast.throttling.rate");
         final int multicastRate = multicastRateStr == null ? 10 : Integer.parseInt(multicastRateStr);
@@ -4369,6 +4370,8 @@ public class ConfigurationManagerImpl extends ManagerBase implements Configurati
         if (serviceOfferingId != null) {
             offeringFinal.setServiceOfferingId(serviceOfferingId);
         }
+        //Set Service package id
+        offeringFinal.setServicePackage(servicePackageUuid);
 
         // validate the details
         if (details != null) {

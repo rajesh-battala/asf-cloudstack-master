@@ -132,6 +132,11 @@ public class CreateNetworkOfferingCmd extends BaseCmd {
                description = "maximum number of concurrent connections supported by the network offering")
     private Integer maxConnections;
 
+    @Parameter(name = ApiConstants.NETSCALER_SERVICEPACKAGE_ID,
+            type = CommandType.STRING,
+            description = "Service Package UUID")
+    private String servicePackageUUID;
+
     /////////////////////////////////////////////////////
     /////////////////// Accessors ///////////////////////
     /////////////////////////////////////////////////////
@@ -275,6 +280,11 @@ public class CreateNetworkOfferingCmd extends BaseCmd {
         Collection paramsCollection = details.values();
         Map<String, String> params = (Map<String, String>)(paramsCollection.toArray())[0];
         return params;
+    }
+
+
+    public String getServicePackageId() {
+        return servicePackageUUID;
     }
 
     /////////////////////////////////////////////////////
