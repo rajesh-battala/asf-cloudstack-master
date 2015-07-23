@@ -364,7 +364,7 @@ public class EngineHostDaoImpl extends GenericDaoBase<EngineHostVO, Long> implem
         txn.start();
         SearchCriteria<EngineHostVO> sc = UnmanagedApplianceSearch.create();
         sc.setParameters("lastPinged", lastPingSecondsAfter);
-        sc.setParameters("types", Type.ExternalDhcp, Type.ExternalFirewall, Type.ExternalLoadBalancer, Type.PxeServer, Type.TrafficMonitor, Type.L2Networking);
+        sc.setParameters("types", Type.ExternalDhcp, Type.ExternalFirewall, Type.ExternalLoadBalancer, Type.PxeServer, Type.TrafficMonitor, Type.L2Networking, Type.NetScalerControlCenter);
         List<EngineHostVO> hosts = lockRows(sc, null, true);
 
         for (EngineHostVO host : hosts) {
