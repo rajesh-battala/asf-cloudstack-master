@@ -53,9 +53,6 @@ public class NetScalerControlCenterVO implements InternalIdentity {
     @Column(name = "uuid")
     private String uuid;
 
-    @Column(name = "host_id")
-    private long hostId;
-
     @Column(name = "ncc_ip")
     private String nccip;
 
@@ -71,7 +68,13 @@ public class NetScalerControlCenterVO implements InternalIdentity {
         this.uuid = UUID.randomUUID().toString();
         this.nccip = nccip;
         this.numRetries = retries;
-        this.hostId = hostId;
+    }
+    public NetScalerControlCenterVO(String username, String password, String nccip, int retries) {
+        this.username = username;
+        this.password = password;
+        this.uuid = UUID.randomUUID().toString();
+        this.nccip = nccip;
+        this.numRetries = retries;
     }
 
     public String getUuid() {
@@ -111,14 +114,6 @@ public class NetScalerControlCenterVO implements InternalIdentity {
         this.password = password;
     }
 
-    public long getHostId() {
-        return hostId;
-    }
-
-    public void setHostId(long hostId) {
-        this.hostId = hostId;
-    }
-
     public int getNumRetries() {
         return numRetries;
     }
@@ -130,7 +125,7 @@ public class NetScalerControlCenterVO implements InternalIdentity {
     @Override
     public long getId() {
         // TODO Auto-generated method stub
-        return 0;
+        return id;
     }
 
 }
