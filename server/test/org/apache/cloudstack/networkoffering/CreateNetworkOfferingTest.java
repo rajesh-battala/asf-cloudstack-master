@@ -24,12 +24,6 @@ import java.util.Set;
 
 import javax.inject.Inject;
 
-import junit.framework.TestCase;
-
-import org.apache.cloudstack.context.CallContext;
-import org.apache.cloudstack.framework.config.dao.ConfigurationDao;
-import org.apache.cloudstack.framework.config.impl.ConfigurationVO;
-import org.apache.cloudstack.resourcedetail.dao.UserIpAddressDetailsDao;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -38,6 +32,11 @@ import org.mockito.Matchers;
 import org.mockito.Mockito;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+
+import org.apache.cloudstack.context.CallContext;
+import org.apache.cloudstack.framework.config.dao.ConfigurationDao;
+import org.apache.cloudstack.framework.config.impl.ConfigurationVO;
+import org.apache.cloudstack.resourcedetail.dao.UserIpAddressDetailsDao;
 
 import com.cloud.configuration.ConfigurationManager;
 import com.cloud.event.dao.UsageEventDao;
@@ -59,6 +58,8 @@ import com.cloud.user.UserVO;
 import com.cloud.utils.component.ComponentContext;
 import com.cloud.vm.dao.UserVmDetailsDao;
 
+import junit.framework.TestCase;
+
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(locations = "classpath:/createNetworkOffering.xml")
 public class CreateNetworkOfferingTest extends TestCase {
@@ -68,7 +69,6 @@ public class CreateNetworkOfferingTest extends TestCase {
 
     @Inject
     ConfigurationDao configDao;
-
     @Inject
     NetworkOfferingDao offDao;
 
@@ -130,7 +130,7 @@ public class CreateNetworkOfferingTest extends TestCase {
         NetworkOfferingVO off =
                 configMgr.createNetworkOffering("shared", "shared", TrafficType.Guest, null, false, Availability.Optional, 200, null, false, Network.GuestType.Shared,
                     false, null, false, null, true, false, null, false, null, true);
-        assertNull("Shared network offering with specifyVlan=false was created", off);
+            assertNull("Shared network offering with specifyVlan=false was created", off);
     }
 
     @Test
@@ -146,8 +146,8 @@ public class CreateNetworkOfferingTest extends TestCase {
     public void createSharedNtwkOffWithoutSpecifyIpRanges() {
         NetworkOfferingVO off =
                 configMgr.createNetworkOffering("shared", "shared", TrafficType.Guest, null, true, Availability.Optional, 200, null, false, Network.GuestType.Shared,
-                        false, null, false, null, false, false, null, false, null, true);
-        assertNull("Shared network offering with specifyIpRanges=false was created", off);
+                    false, null, false, null, false, false, null, false, null, true);
+            assertNull("Shared network offering with specifyIpRanges=false was created", off);
     }
 
     //Test Isolated network offerings
@@ -185,8 +185,8 @@ public class CreateNetworkOfferingTest extends TestCase {
         serviceProviderMap.put(Network.Service.SourceNat, vrProvider);
         NetworkOfferingVO off =
                 configMgr.createNetworkOffering("isolated", "isolated", TrafficType.Guest, null, false, Availability.Optional, 200, serviceProviderMap, false,
-                        Network.GuestType.Isolated, false, null, false, null, true, false, null, false, null, true);
-        assertNull("Isolated network offering with specifyIpRanges=true and source nat service enabled, was created", off);
+                    Network.GuestType.Isolated, false, null, false, null, true, false, null, false, null, true);
+            assertNull("Isolated network offering with specifyIpRanges=true and source nat service enabled, was created", off);
     }
 
     @Test

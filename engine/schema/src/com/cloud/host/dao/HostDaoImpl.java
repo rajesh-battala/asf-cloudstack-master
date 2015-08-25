@@ -49,6 +49,7 @@ import com.cloud.host.Status;
 import com.cloud.host.Status.Event;
 import com.cloud.info.RunningHostCountInfo;
 import com.cloud.org.Managed;
+import com.cloud.resource.ResourceService;
 import com.cloud.resource.ResourceState;
 import com.cloud.utils.DateUtil;
 import com.cloud.utils.db.Attribute;
@@ -139,6 +140,9 @@ public class HostDaoImpl extends GenericDaoBase<HostVO, Long> implements HostDao
     protected HostTransferMapDao _hostTransferDao;
     @Inject
     protected ClusterDao _clusterDao;
+
+    @Inject
+    public ResourceService _resourceService;
 
     public HostDaoImpl() {
         super();

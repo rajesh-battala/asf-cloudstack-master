@@ -39,6 +39,9 @@ import javax.crypto.spec.SecretKeySpec;
 import javax.inject.Inject;
 import javax.naming.ConfigurationException;
 
+import org.apache.commons.codec.binary.Base64;
+import org.apache.log4j.Logger;
+
 import org.apache.cloudstack.acl.ControlledEntity;
 import org.apache.cloudstack.affinity.AffinityGroupProcessor;
 import org.apache.cloudstack.affinity.dao.AffinityGroupVMMapDao;
@@ -50,6 +53,7 @@ import org.apache.cloudstack.api.command.admin.account.EnableAccountCmd;
 import org.apache.cloudstack.api.command.admin.account.ListAccountsCmdByAdmin;
 import org.apache.cloudstack.api.command.admin.account.LockAccountCmd;
 import org.apache.cloudstack.api.command.admin.account.UpdateAccountCmd;
+import org.apache.cloudstack.api.command.admin.address.AcquirePodIpCmdByAdmin;
 import org.apache.cloudstack.api.command.admin.address.AssociateIPAddrCmdByAdmin;
 import org.apache.cloudstack.api.command.admin.address.ListPublicIpAddressesCmdByAdmin;
 import org.apache.cloudstack.api.command.admin.affinitygroup.UpdateVMAffinityGroupCmdByAdmin;
@@ -515,8 +519,6 @@ import org.apache.cloudstack.storage.datastore.db.ImageStoreVO;
 import org.apache.cloudstack.storage.datastore.db.PrimaryDataStoreDao;
 import org.apache.cloudstack.storage.datastore.db.StoragePoolVO;
 import org.apache.cloudstack.utils.identity.ManagementServerNode;
-import org.apache.commons.codec.binary.Base64;
-import org.apache.log4j.Logger;
 
 import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.GetVncPortAnswer;
@@ -860,7 +862,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         _configs = _configDao.getConfiguration();
 
         final String value = _configs.get("event.purge.interval");
-        final int cleanup = NumbersUtil.parseInt(value, 60 * 60 * 24); // 1 day.
+        final int cleanup = NumbersUtil.parseInt(value, 60 * 60 * 24);// 1 day.
 
         _purgeDelay = NumbersUtil.parseInt(_configs.get("event.purge.delay"), 0);
         if (_purgeDelay != 0) {
@@ -868,7 +870,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         }
 
         //Alerts purge configurations
-        final int alertPurgeInterval = NumbersUtil.parseInt(_configDao.getValue(Config.AlertPurgeInterval.key()), 60 * 60 * 24); // 1 day.
+        final int alertPurgeInterval = NumbersUtil.parseInt(_configDao.getValue(Config.AlertPurgeInterval.key()), 60 * 60 * 24);// 1 day.
         _alertPurgeDelay = NumbersUtil.parseInt(_configDao.getValue(Config.AlertPurgeDelay.key()), 0);
         if (_alertPurgeDelay != 0) {
             _alertExecutor.scheduleAtFixedRate(new AlertPurgeTask(), alertPurgeInterval, alertPurgeInterval, TimeUnit.SECONDS);
@@ -1100,7 +1102,8 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
     }
 
     @Override
-    public Ternary<Pair<List<? extends Host>, Integer>, List<? extends Host>, Map<Host, Boolean>> listHostsForMigrationOfVM(final Long vmId, final Long startIndex, final Long pageSize) {
+    public Ternary<Pair<List<? extends Host>, Integer>, List<? extends Host>, Map<Host, Boolean>> listHostsForMigrationOfVM(final Long vmId, final Long startIndex,
+            final Long pageSize) {
         final Account caller = getCaller();
         if (!_accountMgr.isRootAdmin(caller.getId())) {
             if (s_logger.isDebugEnabled()) {
@@ -1124,11 +1127,11 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
             throw ex;
         }
 
-        if(_serviceOfferingDetailsDao.findDetail(vm.getServiceOfferingId(), GPU.Keys.pciDevice.toString()) != null) {
-            s_logger.info(" Live Migration of GPU enabled VM : " + vm.getInstanceName()+ " is not supported");
+        if (_serviceOfferingDetailsDao.findDetail(vm.getServiceOfferingId(), GPU.Keys.pciDevice.toString()) != null) {
+            s_logger.info(" Live Migration of GPU enabled VM : " + vm.getInstanceName() + " is not supported");
             // Return empty list.
-            return new Ternary<Pair<List<? extends Host>, Integer>, List<? extends Host>, Map<Host, Boolean>>(new Pair<List <? extends Host>,
-                    Integer>(new ArrayList<HostVO>(), new Integer(0)), new ArrayList<Host>(), new HashMap<Host, Boolean>());
+            return new Ternary<Pair<List<? extends Host>, Integer>, List<? extends Host>, Map<Host, Boolean>>(
+                    new Pair<List<? extends Host>, Integer>(new ArrayList<HostVO>(), new Integer(0)), new ArrayList<Host>(), new HashMap<Host, Boolean>());
         }
 
         if (!vm.getHypervisorType().equals(HypervisorType.XenServer) && !vm.getHypervisorType().equals(HypervisorType.VMware) && !vm.getHypervisorType().equals(HypervisorType.KVM)
@@ -1238,7 +1241,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         }
 
         for (final HostAllocator allocator : hostAllocators) {
-            if  (canMigrateWithStorage) {
+            if (canMigrateWithStorage) {
                 suitableHosts = allocator.allocateTo(vmProfile, plan, Host.Type.Routing, excludes, allHosts, HostAllocator.RETURN_UPTO_ALL, false);
             } else {
                 suitableHosts = allocator.allocateTo(vmProfile, plan, Host.Type.Routing, excludes, HostAllocator.RETURN_UPTO_ALL, false);
@@ -1387,7 +1390,8 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         return new Pair<List<? extends StoragePool>, List<? extends StoragePool>>(allPools, suitablePools);
     }
 
-    private Pair<List<HostVO>, Integer> searchForServers(final Long startIndex, final Long pageSize, final Object name, final Object type, final Object state, final Object zone, final Object pod, final Object cluster,
+    private Pair<List<HostVO>, Integer> searchForServers(final Long startIndex, final Long pageSize, final Object name, final Object type, final Object state, final Object zone,
+            final Object pod, final Object cluster,
             final Object id, final Object keyword, final Object resourceState, final Object haHosts, final Object hypervisorType, final Object hypervisorVersion) {
         final Filter searchFilter = new Filter(HostVO.class, "id", Boolean.TRUE, startIndex, pageSize);
 
@@ -2018,8 +2022,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         //by this point either osTypeId or osStdType is non-empty. Find by either of them. ID takes preference if both are specified
         if (osTypeId != null) {
             guestOs = ApiDBUtils.findGuestOSById(osTypeId);
-        }
-        else if (osStdName != null) {
+        } else if (osStdName != null) {
             guestOs = ApiDBUtils.findGuestOSByDisplayName(osStdName);
         }
 
@@ -2105,7 +2108,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
 
         //Check if another Guest OS by same name exists
         final GuestOS duplicate = ApiDBUtils.findGuestOSByDisplayName(displayName);
-        if(duplicate != null) {
+        if (duplicate != null) {
             throw new InvalidParameterValueException("The specified Guest OS name : " + displayName + " already exists. Please specify a unique guest OS name");
         }
         final GuestOSVO guestOs = _guestOSDao.createForUpdate(id);
@@ -2190,7 +2193,8 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         return _consoleProxyMgr.startProxy(instanceId, true);
     }
 
-    private ConsoleProxyVO stopConsoleProxy(final VMInstanceVO systemVm, final boolean isForced) throws ResourceUnavailableException, OperationTimedoutException, ConcurrentOperationException {
+    private ConsoleProxyVO stopConsoleProxy(final VMInstanceVO systemVm, final boolean isForced)
+            throws ResourceUnavailableException, OperationTimedoutException, ConcurrentOperationException {
 
         _itMgr.advanceStop(systemVm.getUuid(), isForced);
         return _consoleProxyDao.findById(systemVm.getId());
@@ -2415,8 +2419,9 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
             if (summedCapacitiesAtPod != null) {
                 summedCapacities.addAll(summedCapacitiesAtPod);
             }
-        } else { // Group by Cluster, capacity type
-            final List<SummedCapacity> summedCapacitiesAtCluster = _capacityDao.listCapacitiesGroupedByLevelAndType(capacityType, zoneId, podId, clusterId, 3, cmd.getPageSizeVal());
+        } else {// Group by Cluster, capacity type
+            final List<SummedCapacity> summedCapacitiesAtCluster = _capacityDao.listCapacitiesGroupedByLevelAndType(capacityType, zoneId, podId, clusterId, 3,
+                    cmd.getPageSizeVal());
             if (summedCapacitiesAtCluster != null) {
                 summedCapacities.addAll(summedCapacitiesAtCluster);
             }
@@ -2489,7 +2494,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
                     final SummedCapacity summedCapacity = new SummedCapacity(capacity.getUsedCapacity(), capacity.getTotalCapacity(), capacity.getUsedPercentage(),
                             capacity.getCapacityType(), capacity.getDataCenterId(), capacity.getPodId(), capacity.getClusterId());
                     list.add(summedCapacity);
-                }// End of for
+                } // End of for
             }
             return list;
         }
@@ -2514,8 +2519,10 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         final List<CapacityVO> capacities = new ArrayList<CapacityVO>();
 
         for (final SummedCapacity summedCapacity : summedCapacities) {
-            final CapacityVO capacity = new CapacityVO(null, summedCapacity.getDataCenterId(),summedCapacity.getPodId(), summedCapacity.getClusterId(), summedCapacity.getUsedCapacity()
-                    + summedCapacity.getReservedCapacity(), summedCapacity.getTotalCapacity(), summedCapacity.getCapacityType());
+            final CapacityVO capacity = new CapacityVO(null, summedCapacity.getDataCenterId(), summedCapacity.getPodId(), summedCapacity.getClusterId(),
+                    summedCapacity.getUsedCapacity()
+                            + summedCapacity.getReservedCapacity(),
+                    summedCapacity.getTotalCapacity(), summedCapacity.getCapacityType());
             capacities.add(capacity);
         }
 
@@ -3019,6 +3026,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         cmdList.add(UpdateLBHealthCheckPolicyCmd.class);
         cmdList.add(GetUploadParamsForTemplateCmd.class);
         cmdList.add(GetUploadParamsForVolumeCmd.class);
+        cmdList.add(AcquirePodIpCmdByAdmin.class);
         return cmdList;
     }
 
@@ -3095,7 +3103,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
     }
 
     private SecondaryStorageVmVO stopSecondaryStorageVm(final VMInstanceVO systemVm, final boolean isForced) throws ResourceUnavailableException, OperationTimedoutException,
-    ConcurrentOperationException {
+            ConcurrentOperationException {
 
         _itMgr.advanceStop(systemVm.getUuid(), isForced);
         return _secStorageVmDao.findById(systemVm.getId());
@@ -3494,8 +3502,8 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
 
         _consoleProxyMgr.setManagementState(ConsoleProxyManagementState.ResetSuspending);
         return "Certificate has been successfully updated, if its the server certificate we would reboot all " +
-        "running console proxy VMs and secondary storage VMs to propagate the new certificate, " +
-        "please give a few minutes for console access and storage services service to be up and working again";
+                "running console proxy VMs and secondary storage VMs to propagate the new certificate, " +
+                "please give a few minutes for console access and storage services service to be up and working again";
     }
 
     @Override
@@ -3710,7 +3718,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         newPair.setName(name);
         newPair.setFingerprint(fingerprint);
         newPair.setPublicKey(publicKey);
-        newPair.setPrivateKey(privateKey); // transient; not saved.
+        newPair.setPrivateKey(privateKey);// transient; not saved.
 
         _sshKeyPairDao.persist(newPair);
 
@@ -3847,7 +3855,8 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
     }
 
     @Override
-    public Pair<List<? extends HypervisorCapabilities>, Integer> listHypervisorCapabilities(final Long id, final HypervisorType hypervisorType, final String keyword, final Long startIndex,
+    public Pair<List<? extends HypervisorCapabilities>, Integer> listHypervisorCapabilities(final Long id, final HypervisorType hypervisorType, final String keyword,
+            final Long startIndex,
             final Long pageSizeVal) {
         final Filter searchFilter = new Filter(HypervisorCapabilitiesVO.class, "id", true, startIndex, pageSizeVal);
         final SearchCriteria<HypervisorCapabilitiesVO> sc = _hypervisorCapabilitiesDao.createSearchCriteria();
@@ -3907,7 +3916,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
     @Override
     @ActionEvent(eventType = EventTypes.EVENT_VM_UPGRADE, eventDescription = "Upgrading system VM", async = true)
     public VirtualMachine upgradeSystemVM(final ScaleSystemVMCmd cmd) throws ResourceUnavailableException, ManagementServerException, VirtualMachineMigrationException,
-    ConcurrentOperationException {
+            ConcurrentOperationException {
 
         final VMInstanceVO vmInstance = _vmInstanceDao.findById(cmd.getId());
         if (vmInstance.getHypervisorType() == HypervisorType.XenServer && vmInstance.getState().equals(State.Running)) {
@@ -3972,7 +3981,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         String encodedPassword = null;
 
         final UserVO adminUser = _userDao.getUser(2);
-        if (adminUser  == null) {
+        if (adminUser == null) {
             final String msg = "CANNOT find admin user";
             s_logger.error(msg);
             throw new CloudRuntimeException(msg);
