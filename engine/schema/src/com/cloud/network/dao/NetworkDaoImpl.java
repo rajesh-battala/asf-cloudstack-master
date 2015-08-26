@@ -25,8 +25,9 @@ import javax.ejb.Local;
 import javax.inject.Inject;
 import javax.persistence.TableGenerator;
 
-import org.apache.cloudstack.acl.ControlledEntity.ACLType;
 import org.springframework.stereotype.Component;
+
+import org.apache.cloudstack.acl.ControlledEntity.ACLType;
 
 import com.cloud.network.Network;
 import com.cloud.network.Network.Event;
@@ -43,6 +44,7 @@ import com.cloud.offerings.dao.NetworkOfferingDao;
 import com.cloud.server.ResourceTag.ResourceObjectType;
 import com.cloud.tags.dao.ResourceTagDao;
 import com.cloud.utils.db.DB;
+import com.cloud.utils.db.Filter;
 import com.cloud.utils.db.GenericDaoBase;
 import com.cloud.utils.db.GenericSearchBuilder;
 import com.cloud.utils.db.JoinBuilder;
@@ -58,7 +60,7 @@ import com.cloud.utils.net.NetUtils;
 @Component
 @Local(value = NetworkDao.class)
 @DB()
-public class NetworkDaoImpl extends GenericDaoBase<NetworkVO, Long> implements NetworkDao {
+public class NetworkDaoImpl extends GenericDaoBase<NetworkVO, Long>implements NetworkDao {
     SearchBuilder<NetworkVO> AllFieldsSearch;
     SearchBuilder<NetworkVO> AccountSearch;
     SearchBuilder<NetworkVO> RelatedConfigSearch;
@@ -276,7 +278,6 @@ public class NetworkDaoImpl extends GenericDaoBase<NetworkVO, Long> implements N
         sc.setParameters("guestType", type);
         return listBy(sc, null);
     }
-
 
     public List<NetworkVO> findBy(final TrafficType trafficType, final Mode mode, final BroadcastDomainType broadcastType, final long networkOfferingId, final long dataCenterId) {
         final SearchCriteria<NetworkVO> sc = AllFieldsSearch.create();
@@ -677,5 +678,14 @@ public class NetworkDaoImpl extends GenericDaoBase<NetworkVO, Long> implements N
         sc.setJoinParameters("offerings", "isSystem", false);
         final List<Integer> results = customSearch(sc, null);
         return results.get(0);
+    }
+
+    @Override
+    public List<NetworkVO> listNetworkOfferingId(List<Long> idset) {
+        final SearchCriteria<NetworkVO> sc_2 = createSearchCriteria();
+        final Filter searchFilter_2 = new Filter(NetworkVO.class, "id", false, null, null);
+        sc_2.addAnd("networkOfferingId", SearchCriteria.Op.IN, idset);
+        sc_2.addAnd("removed", SearchCriteria.Op.EQ, null);
+        return this.search(sc_2, searchFilter_2);
     }
 }
