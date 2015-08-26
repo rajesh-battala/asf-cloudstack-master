@@ -19,6 +19,7 @@ package com.cloud.network;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cloudstack.api.command.admin.address.ReleasePodIpCmdByAdmin;
 import org.apache.cloudstack.api.command.admin.network.DedicateGuestVlanRangeCmd;
 import org.apache.cloudstack.api.command.admin.network.ListDedicatedGuestVlanRangesCmd;
 import org.apache.cloudstack.api.command.admin.usage.ListTrafficTypeImplementorsCmd;
@@ -26,6 +27,7 @@ import org.apache.cloudstack.api.command.user.network.CreateNetworkCmd;
 import org.apache.cloudstack.api.command.user.network.ListNetworksCmd;
 import org.apache.cloudstack.api.command.user.network.RestartNetworkCmd;
 import org.apache.cloudstack.api.command.user.vm.ListNicsCmd;
+import org.apache.cloudstack.api.response.AcquirePodIpCmdResponse;
 
 import com.cloud.exception.ConcurrentOperationException;
 import com.cloud.exception.InsufficientAddressCapacityException;
@@ -38,6 +40,7 @@ import com.cloud.offering.NetworkOffering;
 import com.cloud.user.Account;
 import com.cloud.user.User;
 import com.cloud.utils.Pair;
+import com.cloud.utils.exception.CloudRuntimeException;
 import com.cloud.vm.Nic;
 import com.cloud.vm.NicSecondaryIp;
 
@@ -51,12 +54,12 @@ public interface NetworkService {
     List<? extends Network> getIsolatedNetworksOwnedByAccountInZone(long zoneId, Account owner);
 
     IpAddress allocateIP(Account ipOwner, long zoneId, Long networkId, Boolean displayIp) throws ResourceAllocationException, InsufficientAddressCapacityException,
-        ConcurrentOperationException;
+            ConcurrentOperationException;
 
     boolean releaseIpAddress(long ipAddressId) throws InsufficientAddressCapacityException;
 
     IpAddress allocatePortableIP(Account ipOwner, int regionId, Long zoneId, Long networkId, Long vpcId) throws ResourceAllocationException,
-        InsufficientAddressCapacityException, ConcurrentOperationException;
+            InsufficientAddressCapacityException, ConcurrentOperationException;
 
     boolean releasePortableIpAddress(long ipAddressId);
 
@@ -77,10 +80,10 @@ public interface NetworkService {
     IpAddress getIp(long id);
 
     Network updateGuestNetwork(long networkId, String name, String displayText, Account callerAccount, User callerUser, String domainSuffix, Long networkOfferingId,
-        Boolean changeCidr, String guestVmCidr, Boolean displayNetwork, String newUUID);
+            Boolean changeCidr, String guestVmCidr, Boolean displayNetwork, String newUUID);
 
     PhysicalNetwork createPhysicalNetwork(Long zoneId, String vnetRange, String networkSpeed, List<String> isolationMethods, String broadcastDomainRange, Long domainId,
-        List<String> tags, String name);
+            List<String> tags, String name);
 
     Pair<List<? extends PhysicalNetwork>, Integer> searchPhysicalNetworks(Long id, Long zoneId, String keyword, Long startIndex, Long pageSize, String name);
 
@@ -91,10 +94,10 @@ public interface NetworkService {
     List<? extends Service> listNetworkServices(String providerName);
 
     PhysicalNetworkServiceProvider addProviderToPhysicalNetwork(Long physicalNetworkId, String providerName, Long destinationPhysicalNetworkId,
-        List<String> enabledServices);
+            List<String> enabledServices);
 
     Pair<List<? extends PhysicalNetworkServiceProvider>, Integer> listNetworkServiceProviders(Long physicalNetworkId, String name, String state, Long startIndex,
-        Long pageSize);
+            Long pageSize);
 
     PhysicalNetworkServiceProvider updateNetworkServiceProvider(Long id, String state, List<String> enabledServices);
 
@@ -110,8 +113,9 @@ public interface NetworkService {
 
     long findPhysicalNetworkId(long zoneId, String tag, TrafficType trafficType);
 
-    PhysicalNetworkTrafficType addTrafficTypeToPhysicalNetwork(Long physicalNetworkId, String trafficType, String isolationMethod, String xenLabel, String kvmLabel, String vmwareLabel,
-        String simulatorLabel, String vlan, String hypervLabel, String ovm3label);
+    PhysicalNetworkTrafficType addTrafficTypeToPhysicalNetwork(Long physicalNetworkId, String trafficType, String isolationMethod, String xenLabel, String kvmLabel,
+            String vmwareLabel,
+            String simulatorLabel, String vlan, String hypervLabel, String ovm3label);
 
     PhysicalNetworkTrafficType getPhysicalNetworkTrafficType(Long id);
 
@@ -143,7 +147,7 @@ public interface NetworkService {
      * @throws InsufficientAddressCapacityException
      */
     IpAddress associateIPToNetwork(long ipId, long networkId) throws InsufficientAddressCapacityException, ResourceAllocationException, ResourceUnavailableException,
-        ConcurrentOperationException;
+            ConcurrentOperationException;
 
     /**
      *
@@ -164,8 +168,8 @@ public interface NetworkService {
      * @throws ResourceAllocationException
      */
     Network createPrivateNetwork(String networkName, String displayText, long physicalNetworkId, String broadcastUri, String startIp, String endIP, String gateway,
-        String netmask, long networkOwnerId, Long vpcId, Boolean sourceNat, Long networkOfferingId) throws ResourceAllocationException, ConcurrentOperationException,
-        InsufficientCapacityException;
+            String netmask, long networkOwnerId, Long vpcId, Boolean sourceNat, Long networkOfferingId) throws ResourceAllocationException, ConcurrentOperationException,
+                    InsufficientCapacityException;
 
     /* Requests an IP address for the guest nic */
     NicSecondaryIp allocateSecondaryGuestIP(long nicId, String ipaddress) throws InsufficientAddressCapacityException;
@@ -180,4 +184,9 @@ public interface NetworkService {
     IpAddress updateIP(Long id, String customId, Boolean displayIp);
 
     boolean configureNicSecondaryIp(NicSecondaryIp secIp, boolean isZoneSgEnabled);
+
+    AcquirePodIpCmdResponse allocatePodIp(Account account, long zoneId, String cidr) throws ResourceAllocationException, ConcurrentOperationException;
+
+    public boolean releasePodIp(ReleasePodIpCmdByAdmin ip) throws CloudRuntimeException;
+
 }

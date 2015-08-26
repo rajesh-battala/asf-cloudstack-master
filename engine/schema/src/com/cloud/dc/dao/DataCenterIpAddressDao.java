@@ -45,4 +45,6 @@ public interface DataCenterIpAddressDao extends GenericDao<DataCenterIpAddressVO
 
     boolean deleteIpAddressByPod(long podId);
 
+    void releasePodIpAddress(long id);
+
 }

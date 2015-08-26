@@ -25,7 +25,11 @@ import javax.ejb.Local;
 import javax.inject.Inject;
 import javax.naming.ConfigurationException;
 
+import org.apache.log4j.Logger;
+import org.springframework.stereotype.Component;
+
 import org.apache.cloudstack.acl.ControlledEntity.ACLType;
+import org.apache.cloudstack.api.command.admin.address.ReleasePodIpCmdByAdmin;
 import org.apache.cloudstack.api.command.admin.network.DedicateGuestVlanRangeCmd;
 import org.apache.cloudstack.api.command.admin.network.ListDedicatedGuestVlanRangesCmd;
 import org.apache.cloudstack.api.command.admin.usage.ListTrafficTypeImplementorsCmd;
@@ -33,10 +37,11 @@ import org.apache.cloudstack.api.command.user.network.CreateNetworkCmd;
 import org.apache.cloudstack.api.command.user.network.ListNetworksCmd;
 import org.apache.cloudstack.api.command.user.network.RestartNetworkCmd;
 import org.apache.cloudstack.api.command.user.vm.ListNicsCmd;
+import org.apache.cloudstack.api.response.AcquirePodIpCmdResponse;
+import org.apache.cloudstack.context.CallContext;
 import org.apache.cloudstack.engine.orchestration.service.NetworkOrchestrationService;
-import org.apache.log4j.Logger;
-import org.springframework.stereotype.Component;
 
+import com.cloud.dc.DataCenter;
 import com.cloud.deploy.DataCenterDeployment;
 import com.cloud.deploy.DeployDestination;
 import com.cloud.deploy.DeploymentPlan;
@@ -44,10 +49,12 @@ import com.cloud.exception.ConcurrentOperationException;
 import com.cloud.exception.InsufficientAddressCapacityException;
 import com.cloud.exception.InsufficientCapacityException;
 import com.cloud.exception.InsufficientVirtualNetworkCapacityException;
+import com.cloud.exception.InvalidParameterValueException;
 import com.cloud.exception.ResourceAllocationException;
 import com.cloud.exception.ResourceUnavailableException;
 import com.cloud.network.GuestVlan;
 import com.cloud.network.IpAddress;
+import com.cloud.network.IpAddressManager;
 import com.cloud.network.Network;
 import com.cloud.network.Network.Provider;
 import com.cloud.network.Network.Service;
@@ -69,9 +76,12 @@ import com.cloud.network.rules.LoadBalancerContainer.Scheme;
 import com.cloud.offering.NetworkOffering;
 import com.cloud.offerings.dao.NetworkOfferingServiceMapDao;
 import com.cloud.user.Account;
+import com.cloud.user.AccountManager;
 import com.cloud.user.User;
 import com.cloud.utils.Pair;
 import com.cloud.utils.component.ManagerBase;
+import com.cloud.utils.db.EntityManager;
+import com.cloud.utils.exception.CloudRuntimeException;
 import com.cloud.vm.Nic;
 import com.cloud.vm.NicProfile;
 import com.cloud.vm.NicSecondaryIp;
@@ -90,6 +100,15 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
     NetworkOfferingServiceMapDao _ntwkOfferingSrvcDao;
 
     @Inject
+    AccountManager _accountMgr;
+
+    @Inject
+    IpAddressManager _ipAddrMgr;
+
+    @Inject
+    EntityManager _entityMgr;
+
+    @Inject
     List<NetworkElement> _networkElements;
 
     private static HashMap<String, String> s_providerToNetworkElementMap = new HashMap<String, String>();
@@ -105,7 +124,7 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
             if (implementedProvider != null) {
                 if (s_providerToNetworkElementMap.containsKey(implementedProvider.getName())) {
                     s_logger.error("Cannot start MapNetworkManager: Provider <-> NetworkElement must be a one-to-one map, " +
-                        "multiple NetworkElements found for Provider: " + implementedProvider.getName());
+                            "multiple NetworkElements found for Provider: " + implementedProvider.getName());
                     return false;
                 }
                 s_providerToNetworkElementMap.put(implementedProvider.getName(), element.getName());
@@ -155,14 +174,14 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
      */
     @Override
     public IpAddress allocateIP(Account ipOwner, long zoneId, Long networkId, Boolean displayIp) throws ResourceAllocationException, InsufficientAddressCapacityException,
-        ConcurrentOperationException {
+            ConcurrentOperationException {
         // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public IpAddress allocatePortableIP(Account ipOwner, int regionId, Long zoneId, Long networkId, Long vpcId) throws ResourceAllocationException,
-        InsufficientAddressCapacityException, ConcurrentOperationException {
+            InsufficientAddressCapacityException, ConcurrentOperationException {
         return null;
     }
 
@@ -212,7 +231,7 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
      */
     @Override
     public boolean restartNetwork(RestartNetworkCmd cmd, boolean cleanup) throws ConcurrentOperationException, ResourceUnavailableException,
-        InsufficientCapacityException {
+            InsufficientCapacityException {
         // TODO Auto-generated method stub
         return false;
     }
@@ -249,7 +268,7 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
      */
     @Override
     public Network updateGuestNetwork(long networkId, String name, String displayText, Account callerAccount, User callerUser, String domainSuffix,
-        Long networkOfferingId, Boolean changeCidr, String guestVmCidr, Boolean displayNetwork, String newUUID) {
+            Long networkOfferingId, Boolean changeCidr, String guestVmCidr, Boolean displayNetwork, String newUUID) {
         // TODO Auto-generated method stub
         return null;
     }
@@ -259,7 +278,7 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
      */
     @Override
     public PhysicalNetwork createPhysicalNetwork(Long zoneId, String vnetRange, String networkSpeed, List<String> isolationMethods, String broadcastDomainRange,
-        Long domainId, List<String> tags, String name) {
+            Long domainId, List<String> tags, String name) {
         // TODO Auto-generated method stub
         return null;
     }
@@ -324,7 +343,7 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
      */
     @Override
     public PhysicalNetworkServiceProvider addProviderToPhysicalNetwork(Long physicalNetworkId, String providerName, Long destinationPhysicalNetworkId,
-        List<String> enabledServices) {
+            List<String> enabledServices) {
         // TODO Auto-generated method stub
         return null;
     }
@@ -334,7 +353,7 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
      */
     @Override
     public Pair<List<? extends PhysicalNetworkServiceProvider>, Integer> listNetworkServiceProviders(Long physicalNetworkId, String name, String state, Long startIndex,
-        Long pageSize) {
+            Long pageSize) {
         // TODO Auto-generated method stub
         return null;
     }
@@ -406,8 +425,9 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
      * @see com.cloud.network.NetworkService#addTrafficTypeToPhysicalNetwork(java.lang.Long, java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String)
      */
     @Override
-    public PhysicalNetworkTrafficType addTrafficTypeToPhysicalNetwork(Long physicalNetworkId, String trafficType, String isolationMethod, String xenLabel, String kvmLabel, String vmwareLabel,
-        String simulatorLabel, String vlan, String hypervLabel, String ovm3Label) {
+    public PhysicalNetworkTrafficType addTrafficTypeToPhysicalNetwork(Long physicalNetworkId, String trafficType, String isolationMethod, String xenLabel, String kvmLabel,
+            String vmwareLabel,
+            String simulatorLabel, String vlan, String hypervLabel, String ovm3Label) {
         // TODO Auto-generated method stub
         return null;
     }
@@ -480,7 +500,7 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
      */
     @Override
     public IpAddress associateIPToNetwork(long ipId, long networkId) throws InsufficientAddressCapacityException, ResourceAllocationException,
-        ResourceUnavailableException, ConcurrentOperationException {
+            ResourceUnavailableException, ConcurrentOperationException {
         // TODO Auto-generated method stub
         return null;
     }
@@ -490,8 +510,8 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
      */
     @Override
     public Network createPrivateNetwork(String networkName, String displayText, long physicalNetworkId, String vlan, String startIp, String endIP, String gateway,
-        String netmask, long networkOwnerId, Long vpcId, Boolean sourceNat, Long networkOfferingId) throws ResourceAllocationException, ConcurrentOperationException,
-        InsufficientCapacityException {
+            String netmask, long networkOwnerId, Long vpcId, Boolean sourceNat, Long networkOfferingId) throws ResourceAllocationException, ConcurrentOperationException,
+                    InsufficientCapacityException {
         // TODO Auto-generated method stub
         return null;
     }
@@ -501,7 +521,7 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
      */
     @Override
     public List<NetworkVO> setupNetwork(Account owner, NetworkOffering offering, DeploymentPlan plan, String name, String displayText, boolean isDefault)
-        throws ConcurrentOperationException {
+            throws ConcurrentOperationException {
         // TODO Auto-generated method stub
         return null;
     }
@@ -511,8 +531,8 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
      */
     @Override
     public List<NetworkVO> setupNetwork(Account owner, NetworkOffering offering, Network predefined, DeploymentPlan plan, String name, String displayText,
-        boolean errorIfAlreadySetup, Long domainId, ACLType aclType, Boolean subdomainAccess, Long vpcId, Boolean isNetworkDisplayEnabled)
-        throws ConcurrentOperationException {
+            boolean errorIfAlreadySetup, Long domainId, ACLType aclType, Boolean subdomainAccess, Long vpcId, Boolean isNetworkDisplayEnabled)
+                    throws ConcurrentOperationException {
         // TODO Auto-generated method stub
         return null;
     }
@@ -531,7 +551,7 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
      */
     @Override
     public void prepare(VirtualMachineProfile profile, DeployDestination dest, ReservationContext context) throws InsufficientCapacityException,
-        ConcurrentOperationException, ResourceUnavailableException {
+            ConcurrentOperationException, ResourceUnavailableException {
         // TODO Auto-generated method stub
 
     }
@@ -577,7 +597,7 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
      */
     @Override
     public Pair<NetworkGuru, NetworkVO> implementNetwork(long networkId, DeployDestination dest, ReservationContext context) throws ConcurrentOperationException,
-        ResourceUnavailableException, InsufficientCapacityException {
+            ResourceUnavailableException, InsufficientCapacityException {
         // TODO Auto-generated method stub
         return null;
     }
@@ -605,9 +625,9 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
      */
     @Override
     public Network createGuestNetwork(long networkOfferingId, String name, String displayText, String gateway, String cidr, String vlanId, String networkDomain,
-        Account owner, Long domainId, PhysicalNetwork physicalNetwork, long zoneId, ACLType aclType, Boolean subdomainAccess, Long vpcId, String gatewayv6,
-        String cidrv6, Boolean displayNetworkEnabled, String isolatedPvlan ) throws ConcurrentOperationException, InsufficientCapacityException,
-        ResourceAllocationException {
+            Account owner, Long domainId, PhysicalNetwork physicalNetwork, long zoneId, ACLType aclType, Boolean subdomainAccess, Long vpcId, String gatewayv6,
+            String cidrv6, Boolean displayNetworkEnabled, String isolatedPvlan) throws ConcurrentOperationException, InsufficientCapacityException,
+                    ResourceAllocationException {
         // TODO Auto-generated method stub
         return null;
     }
@@ -632,7 +652,7 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
      */
     @Override
     public boolean startNetwork(long networkId, DeployDestination dest, ReservationContext context) throws ConcurrentOperationException, ResourceUnavailableException,
-        InsufficientCapacityException {
+            InsufficientCapacityException {
         // TODO Auto-generated method stub
         return false;
     }
@@ -651,15 +671,15 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
      */
     @Override
     public Pair<NicProfile, Integer> allocateNic(NicProfile requested, Network network, Boolean isDefaultNic, int deviceId, VirtualMachineProfile vm)
-        throws InsufficientVirtualNetworkCapacityException, InsufficientAddressCapacityException, ConcurrentOperationException {
+            throws InsufficientVirtualNetworkCapacityException, InsufficientAddressCapacityException, ConcurrentOperationException {
         // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public NicProfile prepareNic(VirtualMachineProfile vmProfile, DeployDestination dest, ReservationContext context, long nicId, Network network)
-        throws InsufficientVirtualNetworkCapacityException, InsufficientAddressCapacityException, ConcurrentOperationException, InsufficientCapacityException,
-        ResourceUnavailableException {
+            throws InsufficientVirtualNetworkCapacityException, InsufficientAddressCapacityException, ConcurrentOperationException, InsufficientCapacityException,
+            ResourceUnavailableException {
         // TODO Auto-generated method stub
         return null;
     }
@@ -696,8 +716,8 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
      */
     @Override
     public NicProfile createNicForVm(Network network, NicProfile requested, ReservationContext context, VirtualMachineProfile vmProfile, boolean prepare)
-        throws InsufficientVirtualNetworkCapacityException, InsufficientAddressCapacityException, ConcurrentOperationException, InsufficientCapacityException,
-        ResourceUnavailableException {
+            throws InsufficientVirtualNetworkCapacityException, InsufficientAddressCapacityException, ConcurrentOperationException, InsufficientCapacityException,
+            ResourceUnavailableException {
         // TODO Auto-generated method stub
         return null;
     }
@@ -716,7 +736,7 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
      */
     @Override
     public boolean restartNetwork(Long networkId, Account callerAccount, User callerUser, boolean cleanup) throws ConcurrentOperationException,
-        ResourceUnavailableException, InsufficientCapacityException {
+            ResourceUnavailableException, InsufficientCapacityException {
         // TODO Auto-generated method stub
         return false;
     }
@@ -735,7 +755,7 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
      */
     @Override
     public void implementNetworkElementsAndResources(DeployDestination dest, ReservationContext context, Network network, NetworkOffering findById)
-        throws ConcurrentOperationException, InsufficientAddressCapacityException, ResourceUnavailableException, InsufficientCapacityException {
+            throws ConcurrentOperationException, InsufficientAddressCapacityException, ResourceUnavailableException, InsufficientCapacityException {
         // TODO Auto-generated method stub
 
     }
@@ -814,7 +834,7 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
 
     @Override
     public Map<Network.Capability, String> getNetworkOfferingServiceCapabilities(NetworkOffering offering, Service service) {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return null;//To change body of implemented methods use File | Settings | File Templates.
     }
 
     @Override
@@ -825,7 +845,7 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
 
     @Override
     public DhcpServiceProvider getDhcpServiceProvider(Network network) {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return null;//To change body of implemented methods use File | Settings | File Templates.
     }
 
     @Override
@@ -835,7 +855,7 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
 
     @Override
     public boolean resourceCountNeedsUpdate(NetworkOffering ntwkOff, ACLType aclType) {
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+        return false;//To change body of implemented methods use File | Settings | File Templates.
     }
 
     @Override
@@ -869,7 +889,29 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
 
     @Override
     public boolean configureNicSecondaryIp(NicSecondaryIp secIp, boolean isZoneSgEnabled) {
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+        return false;//To change body of implemented methods use File | Settings | File Templates.
+    }
+
+    @Override
+    public AcquirePodIpCmdResponse allocatePodIp(Account ipOwner, long zoneId, String cidr) throws ResourceAllocationException, ConcurrentOperationException {
+
+        Account caller = CallContext.current().getCallingAccount();
+        long callerUserId = CallContext.current().getCallingUserId();
+        DataCenter zone = _entityMgr.findById(DataCenter.class, zoneId);
+
+        if (zone == null)
+            throw new InvalidParameterValueException("Invalid zone Id is Null");
+        if (_accountMgr.checkAccessAndSpecifyAuthority(caller, zoneId) != zoneId)
+            throw new InvalidParameterValueException("Caller does not have permission for this Zone" + "(" + zoneId + ")");
+        if (s_logger.isDebugEnabled())
+            s_logger.debug("Associate IP address called by the user " + callerUserId + " account " + ipOwner.getId());
+        return _ipAddrMgr.allocatePodIp(zoneId, cidr);
+    }
+
+    @Override
+    public boolean releasePodIp(ReleasePodIpCmdByAdmin ip) throws CloudRuntimeException {
+        _ipAddrMgr.releasePodIp(ip.getId());
+        return true;
     }
 
 }
