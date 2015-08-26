@@ -35,22 +35,16 @@ import javax.ejb.Local;
 import javax.inject.Inject;
 import javax.naming.ConfigurationException;
 
-import net.juniper.contrail.api.ApiConnector;
-import net.juniper.contrail.api.ApiConnectorFactory;
-import net.juniper.contrail.api.ApiPropertyBase;
-import net.juniper.contrail.api.ObjectReference;
-import net.juniper.contrail.api.types.FloatingIp;
-import net.juniper.contrail.api.types.FloatingIpPool;
-import net.juniper.contrail.api.types.NetworkPolicy;
-import net.juniper.contrail.api.types.VirtualNetwork;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.log4j.Logger;
+
+import com.google.common.collect.ImmutableList;
 
 import org.apache.cloudstack.network.contrail.model.FloatingIpModel;
 import org.apache.cloudstack.network.contrail.model.FloatingIpPoolModel;
 import org.apache.cloudstack.network.contrail.model.ModelController;
 import org.apache.cloudstack.network.contrail.model.VirtualNetworkModel;
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.log4j.Logger;
 
 import com.cloud.configuration.ConfigurationManager;
 import com.cloud.configuration.ConfigurationService;
@@ -98,7 +92,15 @@ import com.cloud.vm.VMInstanceVO;
 import com.cloud.vm.dao.NicDao;
 import com.cloud.vm.dao.UserVmDao;
 import com.cloud.vm.dao.VMInstanceDao;
-import com.google.common.collect.ImmutableList;
+
+import net.juniper.contrail.api.ApiConnector;
+import net.juniper.contrail.api.ApiConnectorFactory;
+import net.juniper.contrail.api.ApiPropertyBase;
+import net.juniper.contrail.api.ObjectReference;
+import net.juniper.contrail.api.types.FloatingIp;
+import net.juniper.contrail.api.types.FloatingIpPool;
+import net.juniper.contrail.api.types.NetworkPolicy;
+import net.juniper.contrail.api.types.VirtualNetwork;
 
 @Local(value = { ContrailManager.class})
 public class ContrailManagerImpl extends ManagerBase implements ContrailManager {
@@ -219,7 +221,7 @@ public class ContrailManagerImpl extends ManagerBase implements ContrailManager 
         ConfigurationManager configMgr = (ConfigurationManager) _configService;
         NetworkOfferingVO voffer = configMgr.createNetworkOffering(offeringName, offeringDisplayText,
                 TrafficType.Public, null, true, Availability.Optional, null, serviceProviderMap, true,
-                Network.GuestType.Shared, false, null, false, null, true, false, null, true, null, false, null);
+                Network.GuestType.Shared, false, null, false, null, true, false, null, true, null, false);
 
         voffer.setState(NetworkOffering.State.Enabled);
         long id = voffer.getId();
@@ -256,7 +258,7 @@ public class ContrailManagerImpl extends ManagerBase implements ContrailManager 
         ConfigurationManager configMgr = (ConfigurationManager)_configService;
         NetworkOfferingVO voffer =
                 configMgr.createNetworkOffering(offeringName, offeringDisplayText, TrafficType.Guest, null, false, Availability.Optional, null, serviceProviderMap, true,
-                        Network.GuestType.Isolated, false, null, false, null, false, true, null, true, null, false, null);
+                Network.GuestType.Isolated, false, null, false, null, false, true, null, true, null, false);
 
         voffer.setState(NetworkOffering.State.Enabled);
         if (offeringName.equals(vpcRouterOfferingName)) {

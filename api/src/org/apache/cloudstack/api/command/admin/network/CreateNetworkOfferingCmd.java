@@ -113,7 +113,7 @@ public class CreateNetworkOfferingCmd extends BaseCmd {
     private Boolean isPersistent;
 
     @Parameter(name = ApiConstants.DETAILS, type = CommandType.MAP, since = "4.2.0", description = "Network offering details in key/value pairs."
-        + " Supported keys are internallbprovider/publiclbprovider with service provider as a value")
+            + " Supported keys are internallbprovider/publiclbprovider/servicePackageUUID with service provider/servicePackageUUID as a value")
     protected Map details;
 
     @Parameter(name = ApiConstants.EGRESS_DEFAULT_POLICY,
@@ -132,10 +132,10 @@ public class CreateNetworkOfferingCmd extends BaseCmd {
                description = "maximum number of concurrent connections supported by the network offering")
     private Integer maxConnections;
 
-    @Parameter(name = ApiConstants.NETSCALER_SERVICEPACKAGE_ID,
-            type = CommandType.STRING,
-            description = "Service Package UUID")
-    private String servicePackageUUID;
+//    @Parameter(name = ApiConstants.NETSCALER_SERVICEPACKAGE_ID,
+//            type = CommandType.STRING,
+//            description = "Service Package UUID")
+//    private String servicePackageUUID;
 
     /////////////////////////////////////////////////////
     /////////////////// Accessors ///////////////////////
@@ -284,7 +284,10 @@ public class CreateNetworkOfferingCmd extends BaseCmd {
 
 
     public String getServicePackageId() {
-        return servicePackageUUID;
+        Map<String, String> data = getDetails();
+        if (data == null)
+            return null;
+        return data.get("servicePackageUUID");
     }
 
     /////////////////////////////////////////////////////

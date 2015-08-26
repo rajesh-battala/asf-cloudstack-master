@@ -160,6 +160,8 @@ associateIpAddress=15
 disassociateIpAddress=15
 listPublicIpAddresses=15
 updateIpAddress=15
+acquirePodIpAddresses=1
+releasePodIpAddress=1
 
 #### firewall commands
 listPortForwardingRules=15
