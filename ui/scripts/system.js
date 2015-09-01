@@ -20873,11 +20873,29 @@
             nspMap[id]: {
             };
             
-            if (jsonObj.state) {
-                if (jsonObj.state == "Enabled")
-                allowedActions.push("disable"); else if (jsonObj.state == "Disabled")
-                allowedActions.push("enable");
-                allowedActions.push("destroy");
+            var netscalerControlCenter = null;
+
+            if (id == "netscaler") {
+                $.ajax({
+                    url: createURL("listNetscalerControlCenter"),
+                    dataType: "json",
+                    async: false,
+                    success: function(json) {
+                        var items = json.listNetscalerControlCenter.netscalercontrolcenter;
+                        if (items != null && items.length > 0) {
+                            netscalerControlCenter = items[0];
+                        }
+                    }
+                });
+            }
+
+            if (id != "netscaler" || netscalerControlCenter != null) {
+                if (jsonObj.state) {
+                    if (jsonObj.state == "Enabled")
+                    allowedActions.push("disable"); else if (jsonObj.state == "Disabled")
+                    allowedActions.push("enable");
+                    allowedActions.push("destroy");
+                }
             }
             
             allowedActions.push('add');
